@@ -441,7 +441,7 @@ function mergeList(local,remote,deleted){
 }
 async function syncNow(){
   if(!tokenValid()){G.dirty=true;updateDot();return}
-  if(G.busy){G.dirty=true;return}
+  if(G.busy){G.again=true;return}
   G.busy=true;G.dirty=false;G.err=null;
   try{
     const d=S.data;
@@ -465,7 +465,7 @@ async function syncNow(){
     try{localStorage.setItem("hh_data",JSON.stringify(d))}catch{}
     G.last=new Date();
   }catch(e){G.err=e.code||"fail";G.dirty=true}
-  finally{G.busy=false;updateDot();if(!$("#sheetRoot").innerHTML)render()}
+  finally{G.busy=false;updateDot();if(!$("#sheetRoot").innerHTML)render();if(G.again){G.again=false;setTimeout(syncNow,300)}}
 }
 function scheduleSync(){if(!S.data.driveLinked)return;G.dirty=true;updateDot();clearTimeout(G.timer);G.timer=setTimeout(syncNow,1500)}
 function driveStatus(){
