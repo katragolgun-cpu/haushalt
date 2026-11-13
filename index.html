@@ -138,7 +138,7 @@ const T={
   byCat:"Ausgaben nach Kategorie",special:"Diesen Monat zusätzlich fällig",noSpecial:"Keine viertel- oder jährlichen Zahlungen in diesem Monat.",
   reserveIn:"Monatlich zurücklegen (für viertel-/jährliche Zahlungen)",reserveOut:"Diesen Monat aus der Rücklage zu zahlen",preview:"Vorschau: Rest in den nächsten 12 Monaten",ending:"Endet bald",
   monthly:"Monatlich",quarterly:"Vierteljährlich",yearly:"Jährlich",perPay:"Betrag pro Zahlung",turnus:"Turnus",payMonths:"Zahlmonate",
-  nameDe:"Bezeichnung (Deutsch)",nameTr:"Bezeichnung (Türkisch)",kind:"Art",cat:"Kategorie",end:"Endet (Monat, optional)",note:"Notiz",
+  nameDe:"Bezeichnung (Deutsch)",nameTr:"Bezeichnung (Türkisch)",kind:"Art",cat:"Kategorie",end:"Endet (Monat, optional)",start:"Beginnt (Monat, optional)",starts:"ab",note:"Notiz",
   save:"Speichern",del:"Löschen",cancel:"Schließen",newItem:"+ Posten",newGoal:"+ Ziel",editItem:"Posten bearbeiten",newItemT:"Neuer Posten",
   kIn:"Einnahme",kOut:"Ausgabe",kSave:"Sparen",perMonth:"pro Monat",ends:"endet",ended:"beendet",
   planned:"Geplant",limit:"Budget",over:"über Budget",noLimit:"Kein Budget gesetzt",budgetHint:"Monatsanteile je Kategorie im gewählten Monat. Trage ein Budget ein, um gewarnt zu werden.",
@@ -154,7 +154,7 @@ const T={
   byCat:"Kategoriye göre giderler",special:"Bu ay ek olarak ödenecek",noSpecial:"Bu ay üç aylık veya yıllık ödeme yok.",
   reserveIn:"Her ay ayrılacak (üç aylık/yıllık ödemeler için)",reserveOut:"Bu ay birikimden ödenecek",preview:"Önizleme: önümüzdeki 12 ayda kalan",ending:"Yakında bitiyor",
   monthly:"Aylık",quarterly:"Üç aylık",yearly:"Yıllık",perPay:"Ödeme başına tutar",turnus:"Ödeme sıklığı",payMonths:"Ödeme ayları",
-  nameDe:"Açıklama (Almanca)",nameTr:"Açıklama (Türkçe)",kind:"Tür",cat:"Kategori",end:"Bitiş (ay, isteğe bağlı)",note:"Not",
+  nameDe:"Açıklama (Almanca)",nameTr:"Açıklama (Türkçe)",kind:"Tür",cat:"Kategori",end:"Bitiş (ay, isteğe bağlı)",start:"Başlangıç (ay, isteğe bağlı)",starts:"başlangıç",note:"Not",
   save:"Kaydet",del:"Sil",cancel:"Kapat",newItem:"+ Kalem",newGoal:"+ Hedef",editItem:"Kalemi düzenle",newItemT:"Yeni kalem",
   kIn:"Gelir",kOut:"Gider",kSave:"Birikim",perMonth:"aylık",ends:"bitiyor",ended:"bitti",
   planned:"Planlanan",limit:"Bütçe",over:"bütçe aşıldı",noLimit:"Bütçe girilmedi",budgetHint:"Seçilen ayda kategori başına aylık paylar. Uyarı almak için bütçe girin.",
@@ -201,7 +201,7 @@ const COLORS=["#2f6f5e","#b4553a","#4a6aa5","#c08a2e","#7a4f9a","#2f8fa3","#8a8a
 const catColor=id=>COLORS[Math.max(0,cats().findIndex(c=>c.id===id))%COLORS.length];
 
 /* ================= Berechnung ================= */
-const active=(it,ym)=>!it.end||ym<=it.end;
+const active=(it,ym)=>(!it.start||ym>=it.start)&&(!it.end||ym<=it.end);
 const dueIn=(it,ym)=>active(it,ym)&&(it.turnus===1||(it.months||[]).includes(+ym.slice(5,7)));
 const share=it=>r2(it.amount/(it.turnus||1));
 function month(ym){
@@ -261,9 +261,10 @@ function viewMonth(){
 }
 function turnusBadge(i){return i.turnus===3?`<span class="badge q">${t("quarterly")}</span>`:i.turnus===12?`<span class="badge y">${t("yearly")}</span>`:""}
 function itemRow(i){
+  const startB=i.start&&i.start>S.ym?`<span class="badge q">${t("starts")} ${ymLabel(i.start,true)} ${i.start.slice(0,4)}</span>`:"";
   const endB=i.end?`<span class="badge end">${i.end<S.ym?t("ended"):t("ends")} ${ymLabel(i.end,true)} ${i.end.slice(0,4)}</span>`:"";
   const sub=i.turnus>1?`${eur(share(i))} ${t("perMonth")} · ${(i.months||[]).map(x=>MSHORT[LANG][x-1]).join(", ")}`:(i.note?esc(i.note):"");
-  return `<button type="button" class="rowbtn" data-item="${i.id}"><div class="row"><div class="n"><b>${esc(nm(i))}</b>${turnusBadge(i)}${endB}${sub?`<div class="m">${sub}</div>`:""}</div><span class="a">${eur(i.amount)}</span></div></button>`;
+  return `<button type="button" class="rowbtn" data-item="${i.id}"><div class="row"><div class="n"><b>${esc(nm(i))}</b>${turnusBadge(i)}${startB}${endB}${sub?`<div class="m">${sub}</div>`:""}</div><span class="a">${eur(i.amount)}</span></div></button>`;
 }
 function viewItems(){
   const it=S.data.items;if(!it.length)return `<p class="note">${t("empty")}</p>`;
@@ -297,7 +298,7 @@ function viewGoals(){
 function openSheet(title,body){$("#sheetRoot").innerHTML=`<div class="scrim" id="scrim"><div class="sheet" role="dialog" aria-modal="true"><div class="sheet-head"><h2>${esc(title)}</h2><button type="button" class="btn" data-act="close">${t("cancel")}</button></div>${body}</div></div>`}
 function closeSheet(){$("#sheetRoot").innerHTML="";S.edit=null}
 function openItem(id){
-  const it=id?structuredClone(S.data.items.find(i=>i.id===id)):{id:null,kind:"out",de:"",tr:"",amount:0,turnus:1,months:[],cat:cats()[0]?.id||null,end:null,note:""};
+  const it=id?structuredClone(S.data.items.find(i=>i.id===id)):{id:null,kind:"out",de:"",tr:"",amount:0,turnus:1,months:[],cat:cats()[0]?.id||null,start:null,end:null,note:""};
   S.edit={type:"item",it,origTurnus:it.turnus};drawItemSheet(id?t("editItem"):t("newItemT"));
 }
 function drawItemSheet(title){
@@ -313,15 +314,16 @@ function drawItemSheet(title){
     <label class="f">${t("perPay")}<input id="fAmt" class="num" inputmode="decimal" value="${String(it.amount).replace(".",",")}"></label>
     ${need?`<div class="f full"><span style="font-size:12.5px;color:var(--muted)">${t("payMonths")} – ${t("pickMonths",{n:need})}</span><div class="months">${MSHORT[LANG].map((m,k)=>`<label><input type="checkbox" data-month="${k+1}" ${(it.months||[]).includes(k+1)?"checked":""}>${m}</label>`).join("")}</div></div>`:""}
     <div class="calc" id="fCalc">${S.edit.convMsg?esc(S.edit.convMsg)+"<br>":""}${t("shareCalc",{s:eur(share(it))})}</div>
+    <label class="f">${t("start")}<input id="fStart" type="month" value="${it.start||""}"></label>
     <label class="f">${t("end")}<input id="fEnd" type="month" value="${it.end||""}"></label>
-    <label class="f">${t("note")}<input id="fNote" value="${esc(it.note||"")}"></label>
+    <label class="f full">${t("note")}<input id="fNote" value="${esc(it.note||"")}"></label>
   </div>
   <div class="btnrow"><button type="button" class="btn primary" data-act="saveItem">${t("save")}</button>${it.id?`<button type="button" class="btn danger" data-act="delItem">${t("del")}</button>`:""}</div>`);
   S.edit.title=title||S.edit.title;
 }
 function readItemForm(){
   const it=S.edit.it;it.de=$("#fDe").value.trim();it.tr=$("#fTr").value.trim();it.kind=$("#fKind").value;
-  it.cat=it.kind==="out"?$("#fCat").value:null;it.amount=parseNum($("#fAmt").value);it.end=$("#fEnd").value||null;it.note=$("#fNote").value.trim();
+  it.cat=it.kind==="out"?$("#fCat").value:null;it.amount=parseNum($("#fAmt").value);it.end=$("#fEnd").value||null;it.start=$("#fStart").value||null;it.note=$("#fNote").value.trim();
   it.months=[...document.querySelectorAll("[data-month]:checked")].map(x=>+x.dataset.month).sort((a,b)=>a-b);
 }
 function defaultMonths(turnus){const m=+S.ym.slice(5,7);if(turnus===12)return [m];if(turnus===3){const s=((m-1)%3)+1;return [s,s+3,s+6,s+9]}return []}
