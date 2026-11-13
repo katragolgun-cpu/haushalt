@@ -99,6 +99,19 @@ input.num{font-family:var(--f-num)}
 .btn.danger{color:var(--bad);border-color:var(--bad)}
 .status{font-size:13.5px;color:var(--muted)}
 .toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(84px + env(safe-area-inset-bottom,0px));background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:10px;font-size:14px;z-index:40;max-width:90%}
+.catrow{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:8px;padding:10px 0;border-bottom:1px solid var(--line)}
+.catrow:last-of-type{border-bottom:0}
+.catrow .tools{grid-column:1/-1;display:flex;gap:6px;justify-content:flex-end}
+.catrow .tools .btn{padding:6px 11px}
+.selrow{display:block;cursor:pointer}
+.selrow .row{gap:10px}
+.selrow input{width:22px;height:22px;flex:none;accent-color:var(--accent)}
+.selrow.off{opacity:.45;cursor:default}
+.selbar{position:fixed;left:0;right:0;bottom:calc(64px + env(safe-area-inset-bottom,0px));z-index:7;background:var(--surface);border-top:1px solid var(--line);box-shadow:0 -6px 18px rgba(0,0,0,.08);padding:10px max(16px,env(safe-area-inset-right,0px)) 10px max(16px,env(safe-area-inset-left,0px))}
+.selbar .in{max-width:760px;margin:0 auto;display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.selbar select{flex:1;min-width:150px}
+body.selecting{padding-bottom:190px}
+body.selecting .toast{bottom:calc(200px + env(safe-area-inset-bottom,0px))}
 .budgetrow{display:flex;flex-direction:column;gap:6px;padding:10px 0;border-bottom:1px solid var(--line)}
 .budgetrow:last-child{border-bottom:0}
 .budgetrow .top{display:flex;justify-content:space-between;gap:10px;align-items:center}
@@ -147,7 +160,7 @@ const T={
   shareCalc:"Monatsanteil: {s}",language:"Sprache",drive:"Google Drive",connect:"Mit Google Drive verbinden",syncNow:"Jetzt abgleichen",
   notLinked:"Nicht verbunden. Daten liegen nur auf diesem Gerät.",synced:"Alles in Drive gespeichert, zuletzt um {t} Uhr.",pending:"Änderungen sind noch nicht in Drive.",
   backup:"Sicherung",export:"Sicherung herunterladen",import:"Sicherung einspielen",deleted:"Gelöscht",saved:"Gespeichert",confirmDel:"Wirklich löschen? Nochmal tippen",
-  cats:"Kategorien",catHint:"Namen und Reihenfolge der Kategorien",empty:"Noch keine Posten.",lastPay:"letzte Zahlung"},
+  cats:"Kategorien",catHint:"Namen werden sofort gespeichert. Pfeile ändern die Reihenfolge.",selectMode:"Mehrere verschieben",moveTo:"Verschieben nach",move:"Verschieben",selected:"{n} ausgewählt",moved:"{n} Posten verschoben",catDelInfo:"Löschen? {n} Posten werden „Ohne Kategorie“. Nochmal tippen",noCat:"Ohne Kategorie",selHint:"Tippe die Ausgaben an, die du verschieben willst.",empty:"Noch keine Posten.",lastPay:"letzte Zahlung"},
  tr:{title:"Ev Bütçesi",settings:"Ayarlar",month:"Ay",items:"Kalemler",budget:"Bütçe",goals:"Hedefler",
   income:"Gelirler",expenses:"Giderler",saving:"Birikim",rest:"Kalan",due:"Ödeme ayı",share:"Aylık pay",
   dueHint:"Bu ay gerçekten ödenecek olanlar",shareHint:"Her şey aya bölünmüş (yedek dahil)",
@@ -163,7 +176,7 @@ const T={
   shareCalc:"Aylık pay: {s}",language:"Dil",drive:"Google Drive",connect:"Google Drive'a bağlan",syncNow:"Şimdi eşitle",
   notLinked:"Bağlı değil. Veriler sadece bu cihazda.",synced:"Her şey Drive'da, son eşitleme {t}.",pending:"Değişiklikler henüz Drive'da değil.",
   backup:"Yedekleme",export:"Yedeği indir",import:"Yedeği yükle",deleted:"Silindi",saved:"Kaydedildi",confirmDel:"Gerçekten silinsin mi? Tekrar dokunun",
-  cats:"Kategoriler",catHint:"Kategori adları",empty:"Henüz kalem yok.",lastPay:"son ödeme"}
+  cats:"Kategoriler",catHint:"İsimler hemen kaydedilir. Oklar sırayı değiştirir.",selectMode:"Birden fazla taşı",moveTo:"Şuraya taşı",move:"Taşı",selected:"{n} seçildi",moved:"{n} kalem taşındı",catDelInfo:"Silinsin mi? {n} kalem „Kategorisiz“ olur. Tekrar dokunun",noCat:"Kategorisiz",selHint:"Taşımak istediğin giderlere dokun.",empty:"Henüz kalem yok.",lastPay:"son ödeme"}
 };
 const MONTHS={de:["Januar","Februar","März","April","Mai","Juni","Juli","August","September","Oktober","November","Dezember"],
  tr:["Ocak","Şubat","Mart","Nisan","Mayıs","Haziran","Temmuz","Ağustos","Eylül","Ekim","Kasım","Aralık"]};
@@ -191,11 +204,11 @@ const SEED={version:1,updatedAt:"2026-11-13T00:00:00.000Z",
  deleted:{}};
 
 /* ================= Zustand ================= */
-const S={data:null,view:"month",ym:ymOf(new Date()),mode:"due",edit:null};
+const S={sel:null,data:null,view:"month",ym:ymOf(new Date()),mode:"due",edit:null};
 function load(){try{const d=JSON.parse(localStorage.getItem("hh_data")||"null");if(d&&d.items)return d}catch{}return structuredClone(SEED)}
 function persist(){S.data.updatedAt=nowIso();try{localStorage.setItem("hh_data",JSON.stringify(S.data))}catch{};scheduleSync()}
 S.data=load();
-const cats=()=>S.data.categories;
+const cats=()=>S.data.categories.map((c,i)=>[c,i]).sort((a,b)=>(a[0].order??a[1])-(b[0].order??b[1])).map(x=>x[0]);
 const catById=id=>cats().find(c=>c.id===id);
 const COLORS=["#2f6f5e","#b4553a","#4a6aa5","#c08a2e","#7a4f9a","#2f8fa3","#8a8a3a","#a34a6e","#5f6f7a","#3f9a5a"];
 const catColor=id=>COLORS[Math.max(0,cats().findIndex(c=>c.id===id))%COLORS.length];
@@ -225,7 +238,7 @@ function render(){
   document.documentElement.lang=LANG;
   $("#title").textContent=t("title");$("#tSettings").textContent=t("settings");
   $("#tabs").innerHTML=["month","items","budget","goals"].map(k=>`<button type="button" data-tab="${k}" ${S.view===k?'aria-current="page"':""}>${ICONS[k]}${t(k)}</button>`).join("");
-  const fab=$("#fab");fab.hidden=!(S.view==="items"||S.view==="goals");fab.textContent=S.view==="goals"?t("newGoal"):t("newItem");
+  const fab=$("#fab");fab.hidden=!(S.view==="items"||S.view==="goals")||!!S.sel;fab.textContent=S.view==="goals"?t("newGoal"):t("newItem");
   const v={month:viewMonth,items:viewItems,budget:viewBudget,goals:viewGoals}[S.view];
   $("#main").innerHTML=v();updateDot();
 }
@@ -261,6 +274,7 @@ function viewMonth(){
 }
 function turnusBadge(i){return i.turnus===3?`<span class="badge q">${t("quarterly")}</span>`:i.turnus===12?`<span class="badge y">${t("yearly")}</span>`:""}
 function itemRow(i){
+  if(S.sel){const ok=i.kind==="out";return `<label class="selrow${ok?"":" off"}"><div class="row">${ok?`<input type="checkbox" data-sel="${i.id}" ${S.sel.has(i.id)?"checked":""}>`:""}<div class="n"><b>${esc(nm(i))}</b></div><span class="a">${eur(i.amount)}</span></div></label>`}
   const startB=i.start&&i.start>S.ym?`<span class="badge q">${t("starts")} ${ymLabel(i.start,true)} ${i.start.slice(0,4)}</span>`:"";
   const endB=i.end?`<span class="badge end">${i.end<S.ym?t("ended"):t("ends")} ${ymLabel(i.end,true)} ${i.end.slice(0,4)}</span>`:"";
   const sub=i.turnus>1?`${eur(share(i))} ${t("perMonth")} · ${(i.months||[]).map(x=>MSHORT[LANG][x-1]).join(", ")}`:(i.note?esc(i.note):"");
@@ -271,9 +285,10 @@ function viewItems(){
   const grp=(title,list,sum)=>list.length?`<section class="sec"><div class="grp"><span>${esc(title)}</span><span class="num">${eur(sum)} ${t("perMonth")}</span></div>${list.map(itemRow).join("")}</section>`:"";
   const tot=l=>l.reduce((a,i)=>a+(active(i,S.ym)?share(i):0),0);
   const ins=it.filter(i=>i.kind==="in"),sav=it.filter(i=>i.kind==="save");
-  let h=grp(t("income"),ins,tot(ins))+grp(t("saving"),sav,tot(sav));
+  let h=S.sel?`<p class="note" style="margin:0">${t("selHint")}</p>`:`<div style="display:flex;justify-content:flex-end"><button type="button" class="btn" data-act="selStart">${t("selectMode")}</button></div>`;
+  h+=S.sel?"":grp(t("income"),ins,tot(ins))+grp(t("saving"),sav,tot(sav));
   for(const c of cats()){const l=it.filter(i=>i.kind==="out"&&i.cat===c.id).sort((a,b)=>b.amount/b.turnus-a.amount/a.turnus);h+=grp(nm(c),l,tot(l))}
-  const none=it.filter(i=>i.kind==="out"&&!catById(i.cat));h+=grp(LANG==="tr"?"Kategorisiz":"Ohne Kategorie",none,tot(none));
+  const none=it.filter(i=>i.kind==="out"&&!catById(i.cat));h+=grp(t("noCat"),none,tot(none));
   return h;
 }
 function viewBudget(){
@@ -294,6 +309,14 @@ function viewGoals(){
     ${x.note?`<p class="note" style="margin:0">${esc(x.note)}</p>`:""}</section></button>`}).join("")||`<p class="note">–</p>`;
 }
 
+function drawSelBar(){
+  let bar=$("#selbar");document.body.classList.toggle("selecting",!!S.sel);
+  if(!S.sel){bar?.remove();return}
+  if(!bar){bar=document.createElement("div");bar.id="selbar";bar.className="selbar";document.body.appendChild(bar)}
+  const keep=$("#selTo")?.value;
+  bar.innerHTML=`<div class="in"><b>${t("selected",{n:S.sel.size})}</b><select id="selTo" aria-label="${esc(t("moveTo"))}">${cats().map(c=>`<option value="${c.id}">${esc(t("moveTo"))}: ${esc(nm(c))}</option>`).join("")}<option value="">${esc(t("moveTo"))}: ${esc(t("noCat"))}</option></select><button type="button" class="btn primary" data-act="selMove" ${S.sel.size?"":"disabled"}>${t("move")}</button><button type="button" class="btn" data-act="selCancel">${t("cancel")}</button></div>`;
+  if(keep!=null)$("#selTo").value=keep;
+}
 /* ================= Bearbeiten ================= */
 function openSheet(title,body){$("#sheetRoot").innerHTML=`<div class="scrim" id="scrim"><div class="sheet" role="dialog" aria-modal="true"><div class="sheet-head"><h2>${esc(title)}</h2><button type="button" class="btn" data-act="close">${t("cancel")}</button></div>${body}</div></div>`}
 function closeSheet(){$("#sheetRoot").innerHTML="";S.edit=null}
@@ -345,8 +368,8 @@ function openSettings(){
   <section class="sec" style="margin-top:12px"><h3>${t("language")}</h3><div class="seg"><button type="button" data-lang="de" aria-pressed="${LANG==="de"}">Deutsch</button><button type="button" data-lang="tr" aria-pressed="${LANG==="tr"}">Türkçe</button></div></section>
   <section class="sec" style="margin-top:12px"><h3>${t("drive")}</h3><p class="status" style="margin:0">${esc(st)}</p>
     <div class="btnrow" style="margin-top:0">${S.data.driveLinked||tokenValid()?`<button type="button" class="btn primary" data-act="sync">${t("syncNow")}</button>`:`<button type="button" class="btn primary" data-act="connect">${t("connect")}</button>`}</div></section>
-  <section class="sec" style="margin-top:12px"><h3>${t("cats")}</h3>${cats().map(c=>`<div class="form" style="margin:0"><label class="f">DE<input data-catde="${c.id}" value="${esc(c.de)}"></label><label class="f">TR<input data-cattr="${c.id}" value="${esc(c.tr)}"></label></div>`).join("")}
-    <div class="btnrow" style="margin-top:0"><button type="button" class="btn" data-act="addCat">+ ${t("cat")}</button><button type="button" class="btn primary" data-act="saveCats">${t("save")}</button></div></section>
+  <section class="sec" style="margin-top:12px"><h3>${t("cats")}</h3><p class="note" style="margin:0">${t("catHint")}</p>${cats().map((c,k,a)=>`<div class="catrow"><label class="f">DE<input data-catde="${c.id}" value="${esc(c.de)}"></label><label class="f">TR<input data-cattr="${c.id}" value="${esc(c.tr)}"></label><div class="tools"><button type="button" class="btn" data-act="catUp" data-cat="${c.id}" ${k===0?"disabled":""} aria-label="nach oben">↑</button><button type="button" class="btn" data-act="catDown" data-cat="${c.id}" ${k===a.length-1?"disabled":""} aria-label="nach unten">↓</button><button type="button" class="btn danger" data-act="catDel" data-cat="${c.id}">${t("del")}</button></div></div>`).join("")}
+    <div class="btnrow" style="margin-top:0"><button type="button" class="btn" data-act="addCat">+ ${t("cat")}</button></div></section>
   <section class="sec" style="margin-top:12px"><h3>${t("backup")}</h3><div class="btnrow" style="margin-top:0"><button type="button" class="btn" data-act="export">${t("export")}</button><button type="button" class="btn" data-act="import">${t("import")}</button></div>
     <input type="file" id="pickBackup" accept="application/json,.json" hidden></section>`);
 }
@@ -356,7 +379,7 @@ document.addEventListener("click",async e=>{
   const b=e.target.closest("button,[data-tab]");if(!b)return;
   if(b.id==="btnSettings")return openSettings();
   if(b.id==="fab")return S.view==="goals"?openGoal():openItem();
-  if(b.dataset.tab){S.view=b.dataset.tab;render();window.scrollTo(0,0);return}
+  if(b.dataset.tab){S.view=b.dataset.tab;S.sel=null;drawSelBar();render();window.scrollTo(0,0);return}
   if(b.dataset.mode){S.mode=b.dataset.mode;return render()}
   if(b.dataset.item)return openItem(b.dataset.item);
   if(b.dataset.goal)return openGoal(b.dataset.goal);
@@ -376,8 +399,14 @@ document.addEventListener("click",async e=>{
     if(!g.id){g.id=uid();S.data.goals.push(g)}else{const k=S.data.goals.findIndex(x=>x.id===g.id);S.data.goals[k]=g}persist();closeSheet();render();toast(t("saved"));return}
   if(act==="delGoal"){if(b.dataset.confirm!=="1"){b.dataset.confirm="1";b.textContent=t("confirmDel");return}
     const id=S.edit.g.id;S.data.goals=S.data.goals.filter(x=>x.id!==id);S.data.deleted[id]=nowIso();persist();closeSheet();render();return}
-  if(act==="addCat"){S.data.categories.push({id:uid(),de:"Neu",tr:"Yeni",budget:null,updatedAt:nowIso()});persist();return openSettings()}
-  if(act==="saveCats"){for(const c of cats()){const de=document.querySelector(`[data-catde="${c.id}"]`),tr=document.querySelector(`[data-cattr="${c.id}"]`);if(de){c.de=de.value.trim();c.tr=tr.value.trim();c.updatedAt=nowIso()}}persist();render();toast(t("saved"));return}
+  if(act==="addCat"){const o=cats().length;S.data.categories.push({id:uid(),de:"Neu",tr:"Yeni",budget:null,order:o,updatedAt:nowIso()});persist();render();openSettings();const el=document.querySelectorAll("[data-catde]");el[el.length-1]?.focus();el[el.length-1]?.select();return}
+  if(act==="catUp"||act==="catDown"){const l=cats();const k=l.findIndex(c=>c.id===b.dataset.cat);const j=act==="catUp"?k-1:k+1;if(j<0||j>=l.length)return;[l[k],l[j]]=[l[j],l[k]];const ts=nowIso();l.forEach((c,n)=>{if(c.order!==n){c.order=n;c.updatedAt=ts}});persist();render();const y=$(".sheet")?.scrollTop;openSettings();if($(".sheet"))$(".sheet").scrollTop=y;return}
+  if(act==="catDel"){const id=b.dataset.cat;const used=S.data.items.filter(i=>i.cat===id);if(b.dataset.confirm!=="1"){b.dataset.confirm="1";b.textContent=t("catDelInfo",{n:used.length});return}
+    const ts=nowIso();used.forEach(i=>{i.cat=null;i.updatedAt=ts});S.data.categories=S.data.categories.filter(c=>c.id!==id);S.data.deleted[id]=ts;persist();render();const y=$(".sheet")?.scrollTop;openSettings();if($(".sheet"))$(".sheet").scrollTop=y;toast(t("deleted"));return}
+  if(act==="selStart"){S.sel=new Set();render();drawSelBar();return}
+  if(act==="selCancel"){S.sel=null;drawSelBar();render();return}
+  if(act==="selMove"){const to=$("#selTo").value||null;const ts=nowIso();let n=0;for(const i of S.data.items)if(S.sel.has(i.id)){i.cat=to;i.updatedAt=ts;n++}S.sel=null;drawSelBar();persist();render();toast(t("moved",{n}));return}
+ if(act==="saveCats"){for(const c of cats()){const de=document.querySelector(`[data-catde="${c.id}"]`),tr=document.querySelector(`[data-cattr="${c.id}"]`);if(de){c.de=de.value.trim();c.tr=tr.value.trim();c.updatedAt=nowIso()}}persist();render();toast(t("saved"));return}
   if(act==="connect")return connectDrive(false);
   if(act==="sync"){if(!tokenValid())return connectDrive(true);await syncNow();return openSettings()}
   if(act==="export"){const blob=new Blob([JSON.stringify(S.data,null,1)],{type:"application/json"});const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download="Haushalt_Sicherung_"+new Date().toISOString().slice(0,10)+".json";a.click();return}
@@ -385,6 +414,8 @@ document.addEventListener("click",async e=>{
 });
 document.addEventListener("change",e=>{
   const el=e.target;
+  if(el.dataset.catde||el.dataset.cattr){const c=catById(el.dataset.catde||el.dataset.cattr);if(c){if(el.dataset.catde)c.de=el.value.trim();else c.tr=el.value.trim();c.updatedAt=nowIso();persist();render()}return}
+  if(el.dataset.sel){if(el.checked)S.sel.add(el.dataset.sel);else S.sel.delete(el.dataset.sel);drawSelBar();return}
   if(el.dataset.budget){const c=catById(el.dataset.budget);const v=el.value.trim();c.budget=v===""?null:parseNum(v);c.updatedAt=nowIso();persist();render();return}
   if(!S.edit||S.edit.type!=="item")return;
   if(el.id==="fTurnus"){readItemForm();const it=S.edit.it;const old=it.turnus,nt=+el.value;
