@@ -112,6 +112,9 @@ input.num{font-family:var(--f-num)}
 .selbar select{flex:1;min-width:150px}
 body.selecting{padding-bottom:190px}
 body.selecting .toast{bottom:calc(200px + env(safe-area-inset-bottom,0px))}
+.search{position:relative}
+.search input{padding-right:40px}
+.search button{position:absolute;right:6px;top:50%;transform:translateY(-50%);border:0;background:none;color:var(--muted);font-size:22px;line-height:1;padding:4px 8px}
 .budgetrow{display:flex;flex-direction:column;gap:6px;padding:10px 0;border-bottom:1px solid var(--line)}
 .budgetrow:last-child{border-bottom:0}
 .budgetrow .top{display:flex;justify-content:space-between;gap:10px;align-items:center}
@@ -160,7 +163,7 @@ const T={
   shareCalc:"Monatsanteil: {s}",language:"Sprache",drive:"Google Drive",connect:"Mit Google Drive verbinden",syncNow:"Jetzt abgleichen",
   notLinked:"Nicht verbunden. Daten liegen nur auf diesem Gerät.",synced:"Alles in Drive gespeichert, zuletzt um {t} Uhr.",pending:"Änderungen sind noch nicht in Drive.",
   backup:"Sicherung",export:"Sicherung herunterladen",import:"Sicherung einspielen",deleted:"Gelöscht",saved:"Gespeichert",confirmDel:"Wirklich löschen? Nochmal tippen",
-  cats:"Kategorien",catHint:"Namen werden sofort gespeichert. Pfeile ändern die Reihenfolge.",selectMode:"Mehrere verschieben",moveTo:"Verschieben nach",move:"Verschieben",selected:"{n} ausgewählt",moved:"{n} Posten verschoben",catDelInfo:"Löschen? {n} Posten werden „Ohne Kategorie“. Nochmal tippen",noCat:"Ohne Kategorie",selHint:"Tippe die Ausgaben an, die du verschieben willst.",empty:"Noch keine Posten.",lastPay:"letzte Zahlung"},
+  cats:"Kategorien",catHint:"Namen werden sofort gespeichert. Pfeile ändern die Reihenfolge.",selectMode:"Mehrere verschieben",moveTo:"Verschieben nach",move:"Verschieben",selected:"{n} ausgewählt",moved:"{n} Posten verschoben",catDelInfo:"Löschen? {n} Posten werden „Ohne Kategorie“. Nochmal tippen",noCat:"Ohne Kategorie",selHint:"Tippe die Ausgaben an, die du verschieben willst.",empty:"Noch keine Posten.",search:"Suchen: Name, Betrag, Kategorie, Notiz",hits:"{n} Treffer",noHits:"Keine Treffer.",clearSearch:"Suche leeren",lastPay:"letzte Zahlung"},
  tr:{title:"Ev Bütçesi",settings:"Ayarlar",month:"Ay",items:"Kalemler",budget:"Bütçe",goals:"Hedefler",
   income:"Gelirler",expenses:"Giderler",saving:"Birikim",rest:"Kalan",due:"Ödeme ayı",share:"Aylık pay",
   dueHint:"Bu ay gerçekten ödenecek olanlar",shareHint:"Her şey aya bölünmüş (yedek dahil)",
@@ -176,7 +179,7 @@ const T={
   shareCalc:"Aylık pay: {s}",language:"Dil",drive:"Google Drive",connect:"Google Drive'a bağlan",syncNow:"Şimdi eşitle",
   notLinked:"Bağlı değil. Veriler sadece bu cihazda.",synced:"Her şey Drive'da, son eşitleme {t}.",pending:"Değişiklikler henüz Drive'da değil.",
   backup:"Yedekleme",export:"Yedeği indir",import:"Yedeği yükle",deleted:"Silindi",saved:"Kaydedildi",confirmDel:"Gerçekten silinsin mi? Tekrar dokunun",
-  cats:"Kategoriler",catHint:"İsimler hemen kaydedilir. Oklar sırayı değiştirir.",selectMode:"Birden fazla taşı",moveTo:"Şuraya taşı",move:"Taşı",selected:"{n} seçildi",moved:"{n} kalem taşındı",catDelInfo:"Silinsin mi? {n} kalem „Kategorisiz“ olur. Tekrar dokunun",noCat:"Kategorisiz",selHint:"Taşımak istediğin giderlere dokun.",empty:"Henüz kalem yok.",lastPay:"son ödeme"}
+  cats:"Kategoriler",catHint:"İsimler hemen kaydedilir. Oklar sırayı değiştirir.",selectMode:"Birden fazla taşı",moveTo:"Şuraya taşı",move:"Taşı",selected:"{n} seçildi",moved:"{n} kalem taşındı",catDelInfo:"Silinsin mi? {n} kalem „Kategorisiz“ olur. Tekrar dokunun",noCat:"Kategorisiz",selHint:"Taşımak istediğin giderlere dokun.",empty:"Henüz kalem yok.",search:"Ara: isim, tutar, kategori, not",hits:"{n} sonuç",noHits:"Sonuç yok.",clearSearch:"Aramayı temizle",lastPay:"son ödeme"}
 };
 const MONTHS={de:["Januar","Februar","März","April","Mai","Juni","Juli","August","September","Oktober","November","Dezember"],
  tr:["Ocak","Şubat","Mart","Nisan","Mayıs","Haziran","Temmuz","Ağustos","Eylül","Ekim","Kasım","Aralık"]};
@@ -204,7 +207,7 @@ const SEED={version:1,updatedAt:"2026-11-13T00:00:00.000Z",
  deleted:{}};
 
 /* ================= Zustand ================= */
-const S={sel:null,data:null,view:"month",ym:ymOf(new Date()),mode:"due",edit:null};
+const S={q:"",sel:null,data:null,view:"month",ym:ymOf(new Date()),mode:"due",edit:null};
 function load(){try{const d=JSON.parse(localStorage.getItem("hh_data")||"null");if(d&&d.items)return d}catch{}return structuredClone(SEED)}
 function persist(){S.data.updatedAt=nowIso();try{localStorage.setItem("hh_data",JSON.stringify(S.data))}catch{};scheduleSync()}
 S.data=load();
@@ -280,8 +283,27 @@ function itemRow(i){
   const sub=i.turnus>1?`${eur(share(i))} ${t("perMonth")} · ${(i.months||[]).map(x=>MSHORT[LANG][x-1]).join(", ")}`:(i.note?esc(i.note):"");
   return `<button type="button" class="rowbtn" data-item="${i.id}"><div class="row"><div class="n"><b>${esc(nm(i))}</b>${turnusBadge(i)}${startB}${endB}${sub?`<div class="m">${sub}</div>`:""}</div><span class="a">${eur(i.amount)}</span></div></button>`;
 }
+function matchItem(i,q){
+  const words=q.toLowerCase().split(/\s+/).filter(Boolean);
+  const c=catById(i.cat);const sh=share(i);
+  const nums=[i.amount,sh].flatMap(n=>[n.toFixed(2).replace(".",","),n.toFixed(2),String(n)]);
+  const kinds={in:[T.de.kIn,T.tr.kIn],out:[T.de.kOut,T.tr.kOut],save:[T.de.kSave,T.tr.kSave]}[i.kind]||[];
+  const tn=i.turnus===3?[T.de.quarterly,T.tr.quarterly]:i.turnus===12?[T.de.yearly,T.tr.yearly]:[T.de.monthly,T.tr.monthly];
+  const hay=[i.de,i.tr,i.note,c?.de,c?.tr,...kinds,...tn,...nums].join(" ").toLowerCase();
+  return words.every(w=>{
+    if(/^\d+[.,]\d{1,2}$/.test(w)){const n=+w.replace(",",".");if(Math.abs(n-i.amount)<0.005||Math.abs(n-sh)<0.005)return true}
+    return hay.includes(w);
+  });
+}
 function viewItems(){
+  if(S.sel)return itemsList();
+  return `<div class="search" role="search"><input type="text" inputmode="search" id="q" value="${esc(S.q)}" placeholder="${esc(t("search"))}" aria-label="${esc(t("search"))}" autocomplete="off" enterkeyhint="search"><button type="button" id="qClear" aria-label="${esc(t("clearSearch"))}" ${S.q?"":"hidden"}>×</button></div><div id="itemList" style="display:flex;flex-direction:column;gap:14px">${itemsList()}</div>`;
+}
+function itemsList(){
   const it=S.data.items;if(!it.length)return `<p class="note">${t("empty")}</p>`;
+  const q=S.sel?"":S.q.trim();
+  if(q){const l=it.filter(i=>matchItem(i,q)).sort((a,b)=>nm(a).localeCompare(nm(b)));
+    return `<p class="note" style="margin:0">${t("hits",{n:l.length})}</p>`+(l.length?`<section class="sec">${l.map(i=>{const c=catById(i.cat);return itemRow(i).replace('</b>',`</b><span class="badge">${esc(i.kind==="out"?(c?nm(c):t("noCat")):i.kind==="in"?t("kIn"):t("kSave"))}</span>`)}).join("")}</section>`:`<p class="note">${t("noHits")}</p>`)}
   const grp=(title,list,sum)=>list.length?`<section class="sec"><div class="grp"><span>${esc(title)}</span><span class="num">${eur(sum)} ${t("perMonth")}</span></div>${list.map(itemRow).join("")}</section>`:"";
   const tot=l=>l.reduce((a,i)=>a+(active(i,S.ym)?share(i):0),0);
   const ins=it.filter(i=>i.kind==="in"),sav=it.filter(i=>i.kind==="save");
@@ -377,6 +399,7 @@ function openSettings(){
 /* ================= Ereignisse ================= */
 document.addEventListener("click",async e=>{
   const b=e.target.closest("button,[data-tab]");if(!b)return;
+  if(b.id==="qClear"){S.q="";const q=$("#q");q.value="";b.hidden=true;$("#itemList").innerHTML=itemsList();q.focus();return}
   if(b.id==="btnSettings")return openSettings();
   if(b.id==="fab")return S.view==="goals"?openGoal():openItem();
   if(b.dataset.tab){S.view=b.dataset.tab;S.sel=null;drawSelBar();render();window.scrollTo(0,0);return}
@@ -509,6 +532,8 @@ function driveStatus(){
 function updateDot(){const d=$("#syncDot");if(d)d.hidden=!(S.data.driveLinked&&(G.dirty||G.err))}
 document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="visible"&&S.data.driveLinked&&tokenValid())syncNow()});
 
+document.addEventListener("input",e=>{if(e.target.id!=="q")return;S.q=e.target.value;$("#qClear").hidden=!S.q;clearTimeout(S.qt);S.qt=setTimeout(()=>{const L=$("#itemList");if(L)L.innerHTML=itemsList()},120)});
+document.addEventListener("keydown",e=>{if(e.target.id==="q"&&e.key==="Escape")$("#qClear").click();else if(e.target.id==="q"&&e.key==="Enter")e.target.blur()});
 /* ================= Start ================= */
 render();
 if(S.data.driveLinked&&tokenValid())syncNow();
